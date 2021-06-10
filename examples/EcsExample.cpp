@@ -49,7 +49,7 @@ using CarArchetype = ecs::Archetype<ecs::ArchetypeFlagDefaults, ecs::storage::Fi
 using GhostArchetype = ecs::Archetype<ecs::ArchetypeFlagDefaults, ecs::storage::Vector, PositionComponent, DrawComponent, TimerComponent>;
 
 /* Simple random helpers. */
-static std::default_random_engine e;
+static std::default_random_engine e(static_cast<long unsigned int>(time(0)));
 float get_randomF() {
 	static std::uniform_real_distribution<float> dis(0, 1); // rage 0 - 1
 	return dis(e);
