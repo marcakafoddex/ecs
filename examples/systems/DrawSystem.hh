@@ -52,7 +52,7 @@ public:
 				buffer[p] = dc.ch;
 		});
 		buffer[WinnerSystem::WinnerPosition] = 0;
-		std::cout << buffer << "\r";
+		std::cout << buffer << "\r" << std::flush;
 	}
 private:
 	ecs::Ecs* m_ecs;
