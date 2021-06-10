@@ -70,13 +70,15 @@ void setupEntity(ecs::Entity entity, float baseAcceleration, char ch) {
 		pc->speed = 0;
 		pc->acceleration = 0.5f * get_randomF() + baseAcceleration;		// random acceleration between 0.5 and 1.0
 	}
-	TimerComponent* tc = entity.get<TimerComponent>();
-	if (tc) {
-		tc->timeLeft = 5 + get_randomF() * 5;							// disappear between 5 and 10 seconds
-	}
 	DrawComponent* dc = entity.get<DrawComponent>();
 	if (dc) {
 		dc->ch = ch;
+	}
+	// not all entities have a timer component in this setup, so here we definitely have
+	// to use get and not fetch
+	TimerComponent* tc = entity.get<TimerComponent>();
+	if (tc) {
+		tc->timeLeft = 5 + get_randomF() * 5;							// disappear between 5 and 10 seconds
 	}
 }
 
@@ -99,6 +101,9 @@ int main(int argc, char** argv) {
 		setupEntity(ghosts.createEntity(), 0.5f, get_randomU() % 2 ? 'G' : 'g');
 
 	/* Setup our systems that will update our components */
+	std::cout << "This non interactive game shows 4 race cars (1-4) and a bunch of ghosts (gG)" << std::endl;
+	std::cout << "competing on a very straight race track. Ghosts are fast but disappear, cars" << std::endl;
+	std::cout << "will never disappear. Exciting right! Let's wait and see what's happens!" << std::endl;
 	PositionSystem positionSystem(&ecs);
 	TimerSystem timerSystem(&ecs);
 	DrawSystem drawSystem(&ecs);
