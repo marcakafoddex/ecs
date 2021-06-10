@@ -873,7 +873,8 @@ DAE_NAMESPACE_BEGIN
 		template<typename... _IterateComponents, typename _Predicate> void iterators(const _Predicate& pr);
 
 		/* Perform maintenance on the archetypes, can be called as often as desired. 
-		 * Will automatically performed maintain as set during compile time.
+		 * Will automatically perform maintenance on archetypes as configured during compile time, i.e.
+		 * it will (optionally) compress and (optionally) reserve more space.
 		 */
 		DAE_ECS_API void performMaintenance();
 

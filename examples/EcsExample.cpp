@@ -124,6 +124,12 @@ int main(int argc, char** argv) {
 		if (!winner.empty())
 			break;
 
+		// perform archetype maintenance, i.e. compress if possible, reserve
+		// if thresholds are met, etc. not really necessary in this example,
+		// but included to show it should be called every now and then in a real
+		// life application
+		ecs.performMaintenance();
+
 		// try to run at 4 FPS (although on Windows this is not very precise usually)
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
