@@ -35,16 +35,6 @@ SOFTWARE.
 #include <cstdio>
 #include <cstdarg>
 
-#if !defined(WIN32)
-#	if !defined(_MSC_VER)
-#		if defined(__clang__)
-#			pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#		else
-#			pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#		endif
-#	endif
-#endif
-
 DAE_NAMESPACE_BEGIN
 
 	namespace {
