@@ -1,6 +1,8 @@
 # C++ Entity Component System
 
 Overview:
+- no external dependencies, just a C++17 compiler
+  - tested with MSVC 2019, clang and gcc
 - bitmask based components
   - currently hard limit of 64 different components 
 - uses archetypes to define types of entities
@@ -11,13 +13,22 @@ Overview:
   - supports custom storage systems if desired
 - supports (de)serialization of the entire ECS state
   - supports "best effort" solving when handling missing or new components when loading data from a different archetype configuration
-- uses C++17 features, so needs a suitable compiler 
-  - tested with MSVC 2019, clang and gcc
 - CMake build system, can be used to generate static and shared builds
 - does not require a base class for components
   - requires a few static methods for compile time information in the component type
 - offers a generic Entity class that can hold an entity of any archetype
   - features simple get (pointer), or fetch (reference, throw if non-existent) interface for all components on this entity class
+
+# Building instructions
+
+You need CMake to build this project.
+
+```
+mkdir build
+cd build
+cmake ..
+make
+```
 
 # Components
 
