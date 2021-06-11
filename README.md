@@ -28,6 +28,8 @@ mkdir build
 cd build
 cmake ..
 make
+cd bin
+./ecs-example
 ```
 
 # Components
