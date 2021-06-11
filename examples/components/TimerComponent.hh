@@ -27,6 +27,7 @@ SOFTWARE.
 #pragma once
 
 #include <Ecs.hh>
+#include <Call.hh>
 
 struct TimerComponent {
 	/* Mandatory static function that returns the name of this component. This is serialized, and later used
@@ -62,10 +63,12 @@ struct TimerComponent {
 	}
 
 	/* Update function that will update the state of this component. */
-	void update(float delta) {
+	void update(float delta, size_t frameNr) {
 		timeLeft -= delta;
-		if (timeLeft <= 0)
+		if (timeLeft <= 0) {
+			listeners.execute(self, frameNr);
 			self.remove();
+		}
 	}
 
 	/* This function gets called automatically by the ECS upon construction of the component. 
@@ -78,4 +81,5 @@ struct TimerComponent {
 	/* Our data */
 	float timeLeft;
 	ecs::Entity self;
+	ecs::CallList<std::shared_ptr, ecs::Entity, size_t> listeners;
 };

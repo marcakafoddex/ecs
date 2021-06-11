@@ -42,7 +42,7 @@ public:
 	DrawSystem(ecs::Ecs* ecs)
 		: m_ecs(ecs) 
 	{}
-	void update() {
+	void update(unsigned* boosts, size_t count) {
 		char buffer[WinnerSystem::WinnerPosition + 1];
 		for (auto& c : buffer) c = '-';
 
@@ -52,7 +52,11 @@ public:
 				buffer[p] = dc.ch;
 		});
 		buffer[WinnerSystem::WinnerPosition] = 0;
-		std::cout << buffer << "\r" << std::flush;
+		std::cout << buffer << " boosts: [";
+		for (size_t i = 0; i < count; ++i) {
+			std::cout << (i ? ", " : "") << boosts[i];
+		}
+		std::cout << "]\r" << std::flush;
 	}
 private:
 	ecs::Ecs* m_ecs;

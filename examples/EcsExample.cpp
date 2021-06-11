@@ -57,7 +57,7 @@ unsigned get_randomU() {
 }
 
 /* Helper function that sets up a car or a ghost */
-void setupEntity(ecs::Entity entity, float baseAcceleration, char ch) {
+ecs::Entity setupEntity(ecs::Entity entity, float baseAcceleration, char ch) {
 	// NOTE: we could use fetch as well, since we're pretty sure the entities we receive
 	// here will be valid, and thus nullptr will never be returned, and we'd get a reference.
 	// But in case someone starts messing with the code, i wrote this a bit more robust.
@@ -77,6 +77,7 @@ void setupEntity(ecs::Entity entity, float baseAcceleration, char ch) {
 	if (tc) {
 		tc->timeLeft = 5 + get_randomF() * 5;							// disappear between 5 and 10 seconds
 	}
+	return entity;
 }
 
 int main(int argc, char** argv) {
@@ -88,25 +89,39 @@ int main(int argc, char** argv) {
 	auto& ghosts = ecs.registerArchetype<GhostArchetype>("ghost", 2);
 
 	/* Spawn 4 cars */
+	std::vector<ecs::Entity> carEntities;
 	for (unsigned i = 0; i < 4; ++i)
-		setupEntity(cars.createEntity(), 0, '1' + i);
+		carEntities.push_back(setupEntity(cars.createEntity(), 0, '1' + i));
 
 	/* Spawn random amount of ghosts */
 	unsigned numGhosts = numGhosts = 5 + get_randomU() % 10;
 	ghosts.reserve(numGhosts);						// for safety reasons archetypes never allocate during a createEntity call, so reserve beforehand
-	for (unsigned i = 0; i < numGhosts; ++i)
-		setupEntity(ghosts.createEntity(), 0.5f, get_randomU() % 2 ? 'G' : 'g');
+	unsigned numBoosts[4] = {0, 0, 0, 0};
+	for (unsigned i = 0; i < numGhosts; ++i) {
+		// create the ghost
+		auto ghost = setupEntity(ghosts.createEntity(), 0.5f, get_randomU() % 2 ? 'G' : 'g');
+		// add a callback to the timer listener, when it's removed, it will boost a random car
+		// add() returns a ptr that can be used to remove the callback again, but we don't need
+		// that here
+		unsigned carIndex = get_randomU() % 4;
+		auto& tc = ghost.fetch<TimerComponent>();
+		tc.listeners.add(carEntities[carIndex], &PositionComponent::boost);							// this calls an entity's component method
+		tc.listeners.add([&numBoosts, carIndex](ecs::Entity, size_t) { ++numBoosts[carIndex]; });	// this uses a std::function of ours
+	}
 
 	/* Setup our systems that will update our components */
 	std::cout << "This non interactive game shows 4 race cars (1-4) and a bunch of ghosts (gG)" << std::endl;
 	std::cout << "competing on a very straight race track. Ghosts are fast but disappear, cars" << std::endl;
-	std::cout << "will never disappear. Exciting right! Let's wait and see what's happens!" << std::endl;
+	std::cout << "will never disappear. All ghosts are bound to a single race car, when the" << std::endl;
+	std::cout << "ghost disappears, its speed is added to the car's!" << std::endl;
+	std::cout << "Exciting right! Let's wait and see what's happens!" << std::endl;
 	PositionSystem positionSystem(&ecs);
 	TimerSystem timerSystem(&ecs);
 	DrawSystem drawSystem(&ecs);
 	WinnerSystem winnerSystem(&ecs);
 	ecs::Entity winner;
 	auto last = std::chrono::system_clock::now();
+	size_t frameNr = 0;
 	while (true) {
 		// calculate frame time
 		const auto now = std::chrono::system_clock::now();
@@ -115,8 +130,8 @@ int main(int argc, char** argv) {
 
 		// update our systems accordingly
 		positionSystem.update(delta.count());
-		timerSystem.update(delta.count());
-		drawSystem.update();
+		timerSystem.update(delta.count(), frameNr);
+		drawSystem.update(numBoosts, sizeof(numBoosts) / sizeof(numBoosts[0]));
 		winner = winnerSystem.update();
 		if (!winner.empty())
 			break;
@@ -129,6 +144,7 @@ int main(int argc, char** argv) {
 
 		// try to run at 4 FPS (although on Windows this is not very precise usually)
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+		++frameNr;
 	}
 
 	/* Display the winner! */

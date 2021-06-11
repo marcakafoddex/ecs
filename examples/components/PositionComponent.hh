@@ -71,6 +71,11 @@ struct PositionComponent {
 		position += (speed * delta);
 	}
 
+	/* Can be used as a callback for the timer component listener, see TimerComponent.hh. */
+	void boost(ecs::Entity ghost, size_t frameNr) {
+		speed += ghost.fetch<PositionComponent>().speed;
+	}
+
 	/* Our data */
 	float position;
 	float acceleration;

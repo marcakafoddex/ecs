@@ -46,9 +46,9 @@ public:
 	TimerSystem(ecs::Ecs* ecs) {
 		m_iterator.initialize(*ecs);
 	}
-	void update(float delta) {
-		m_iterator.iterate([delta](TimerComponent& pc) {
-			pc.update(delta);
+	void update(float delta, size_t frameNr) {
+		m_iterator.iterate([delta, frameNr](TimerComponent& pc) {
+			pc.update(delta, frameNr);
 		});
 	}
 private:

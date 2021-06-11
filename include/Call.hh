@@ -28,95 +28,50 @@ SOFTWARE.
 
 #include <Ecs.hh>
 #include <algorithm>
+#include <functional>
 
 DAE_NAMESPACE_BEGIN
 
-	template<typename _Return, typename ..._Args>
+	/* Base call class has a single virtual execute, used by CallList template below */
+	template<typename ..._Args>
 	class ICall {
 	public:
 		virtual ~ICall() = default;
-		virtual _Return execute(_Args...) = 0;
+		virtual void execute(_Args...) = 0;
 	};
 
-	/* Generic ObjectCall */
-	template<typename _Return, typename _Object, typename ..._Args>
-	class ObjectCall : public ICall<_Return, _Args...> {
+	/* Object + method ptr call implementation */
+	template<typename _Object, typename ..._Args>
+	class ObjectCall : public ICall<_Args...> {
 	public:
-		using ReturnType = _Return;
 		using ObjectType = _Object;
-		using MethodPtr = ReturnType(ObjectType::*)(_Args...);
+		using MethodPtr = void(ObjectType::*)(_Args...);
 		ObjectCall() = default;
 		ObjectCall(ObjectType* object, MethodPtr method) 
 			: m_object(object)
 			, m_method(method)
 		{
 		}
-		ReturnType execute(_Args... args) override {
+		void execute(_Args... args) override {
 			if (m_object && m_method)
-				return (m_object->*m_method)(std::forward<_Args>(args)...);
-			return {};
+				(m_object->*m_method)(std::forward<_Args>(args)...);
 		}
 	private:
 		ObjectType*	m_object = nullptr;
 		MethodPtr	m_method = nullptr;
 	};
 
-	/* Void return type overload of ObjectCall */
-	template<typename _Object, typename ..._Args>
-	class ObjectCall<void, _Object, _Args...> : public ICall<void, _Args...> {
-	public:
-		using ObjectType = _Object;
-		using MethodPtr = void(ObjectType::*)(_Args...);
-		ObjectCall() = default;
-		ObjectCall(ObjectType* object, MethodPtr method)
-			: m_object(object)
-			, m_method(method) {}
-		void execute(_Args... args) override {
-			if (m_object && m_method)
-				(m_object->*m_method)(std::forward<_Args>(args)...);
-		}
-	private:
-		ObjectType* m_object = nullptr;
-		MethodPtr	m_method = nullptr;
-	};
-
-	/* Generic EntityCall */
-	template<typename _Return, typename _Component, typename ..._Args>
-	class EntityCall : public ICall<_Return, _Args...> {
-	public:
-		using ReturnType = _Return;
-		using ComponentType = _Component;
-		using MethodPtr = ReturnType(ComponentType::*)(_Args...);
-		EntityCall() = default;
-		EntityCall(Entity entity, MethodPtr method)
-			: m_entity(entity)
-			, m_method(method)
-		{}
-		ReturnType execute(_Args... args) override {
-			if (m_method) {
-				if (auto comp = m_entity.get<ComponentType>())
-					return (comp->*m_method)(std::forward<_Args>(args)...);
-				else
-					m_entity = {};		// if it failed once, make sure entity goes to empty to prevent calling into invalid entity
-			}
-			return ReturnType{};
-		}
-	private:
-		Entity		m_entity;
-		MethodPtr	m_method = nullptr;
-	};
-
-	/* Void return type overload of EntityCall */
+	/* Entity + component + method ptr call implementation */
 	template<typename _Component, typename ..._Args>
-	class EntityCall<void, _Component, _Args...> : public ICall<void, _Args...> {
+	class EntityCall : public ICall<_Args...> {
 	public:
-		using ReturnType = void;
 		using ComponentType = _Component;
 		using MethodPtr = void(ComponentType::*)(_Args...);
 		EntityCall() = default;
 		EntityCall(Entity entity, MethodPtr method)
 			: m_entity(entity)
-			, m_method(method) {}
+			, m_method(method)
+		{}
 		void execute(_Args... args) override {
 			if (m_method) {
 				if (auto comp = m_entity.get<ComponentType>())
@@ -130,25 +85,45 @@ DAE_NAMESPACE_BEGIN
 		MethodPtr	m_method = nullptr;
 	};
 
+	/* std::function call implementation */
+	template<typename ..._Args>
+	class StdFunctionCall : public ICall<_Args...> {
+	public:
+		using FunctionType = std::function<void(_Args...)>;
+		StdFunctionCall() = default;
+		StdFunctionCall(FunctionType function)
+			: m_function(std::move(function))
+		{}
+		void execute(_Args... args) override {
+			if (m_function)
+				m_function(std::forward<_Args>(args)...);
+		}
+	private:
+		FunctionType	m_function;
+	};
+
 	/* Call list that can take any kind of call implementation.
 	 * Can be used with any kind of "smart" pointer, unique, shared, or custom. 
 	 */
 	template<template<typename...> class _PtrType, typename ..._Args>
 	class CallList {
 	public:
-		using IEntityCallType = ICall<void, _Args...>;
+		using IEntityCallType = ICall<_Args...>;
 		using PtrType = _PtrType<IEntityCallType>;
 
-		void add(PtrType type) {
-			m_list.emplace_back(std::move(type));
+		PtrType add(PtrType type) {
+			return m_list.emplace_back(std::move(type));
 		}
 		template<typename _Component>
-		void add(Entity entity, void(_Component::*method)(_Args...)) {
-			m_list.emplace_back(PtrType{ new EntityCall(entity, method) });
+		PtrType add(Entity entity, void(_Component::*method)(_Args...)) {
+			return m_list.emplace_back(PtrType{ new EntityCall(entity, method) });
 		}
 		template<typename _ObjectType>
-		void add(_ObjectType* object, void(_ObjectType::*method)(_Args...)) {
-			m_list.emplace_back(PtrType{ new ObjectCall(object, method) });
+		PtrType add(_ObjectType* object, void(_ObjectType::*method)(_Args...)) {
+			return m_list.emplace_back(PtrType{ new ObjectCall(object, method) });
+		}
+		PtrType add(std::function<void(_Args...)> function) {
+			return m_list.emplace_back(PtrType{ new StdFunctionCall(std::move(function)) });
 		}
 		void remove(PtrType type) {
 			m_list.erase(std::remove(m_list.begin(), m_list.end(), type),
