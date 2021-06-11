@@ -32,12 +32,18 @@ SOFTWARE.
 #include "components/PositionComponent.hh"
 #include "components/TimerComponent.hh"
 
+// test streams
+#include "Streams.hh"
+
 // test header
 #include "greatest.h"
 
 // C++ stuff
 #include <iostream>
 #include <random>
+#include <set>
+
+GREATEST_MAIN_DEFS();
 
 namespace {
 
@@ -57,13 +63,23 @@ namespace {
 	using FixedArrayStorageArchetype = ecs::Archetype<ecs::ArchetypeFlagDefaults, ecs::storage::FixedSizedArray<4>::Type, PositionComponent, TimerComponent>;
 	using TestArchetype = ecs::Archetype<ecs::ArchetypeFlagDefaults, ecs::storage::FixedSizedArray<4>::Type, PositionComponent, TimerComponent, DrawComponent>;
 
+	template<typename _T> 
+	std::vector<ecs::Entity> getAllEntitiesForArchetype(ecs::Ecs& ecs) {
+		std::vector<ecs::Entity> entities;
+		ecs.findArchetype<_T>().forEachEntity([&](const ecs::Entity& e) { entities.push_back(e); });
+		return entities;
+	}
 }
 
+/* This test just checks if creating an empty ECS object works. */
 TEST ecsBasicEcsConstructionTest() {
 	ecs::Ecs ecs("Test");
 	PASS();
 }
 
+/* This test checks if registering archetypes works, if you can find them again after registering,
+ * and that certain errors from the user are handled as expected (like double registration).
+ */
 TEST ecsBasicRegistrationTest() {
 	ecs::Ecs ecs("Test");
 
@@ -97,6 +113,9 @@ TEST ecsBasicRegistrationTest() {
 	PASS();
 }
 
+/* This test checks if creating an entity works, if after removing it the validation routines
+ * work as expected, and that copies of the entity also work as expected after removal.
+ */
 TEST ecsBasicCreateRemoveTest() {
 	ecs::Ecs ecs("Test");
 	ecs::Entity e;
@@ -121,6 +140,10 @@ TEST ecsBasicCreateRemoveTest() {
 	PASS();
 }
 
+/* This test checks if vector storage behaves as expected: no capacity so no entities before
+ * the first reserve (or enlarge) call.
+ * Then it should only return as many entities as it was given capacity for.
+ */
 TEST ecsVectorStorageTest() {
 	ecs::Ecs ecs("Test");
 	ecs::Entity e;
@@ -142,6 +165,10 @@ TEST ecsVectorStorageTest() {
 	PASS();
 }
 
+/* This test checks if array storage behaves as expected: fixed capacity so no need
+ * for any reserve/enlarge calls.
+ * It should only return as many entities as it was given capacity for.
+ */
 TEST ecsFixedArrayStorageTest() {
 	ecs::Ecs ecs("Test");
 	ecs::Entity e;
@@ -158,9 +185,15 @@ TEST ecsFixedArrayStorageTest() {
 	PASS();
 }
 
+/* This test checks if the archetype correctly reuses slots.
+ * Created entities should always be valid, even though their ids should always
+ * be different from earlier ids (due to versioning).
+ * Will (semi) randomly create and remove, testing that removed slots are reused.
+ */
 TEST ecsReuseEmptySlotsTest() {
 	ecs::Ecs ecs("Test");
 	std::vector<ecs::Entity> entities;
+	std::set<ecs::Entity> removedEntities;
 
 	// allocate capacity for 4 entities
 	// we're "randomly" gonna create and remove entities, making sure we'll never
@@ -176,6 +209,7 @@ TEST ecsReuseEmptySlotsTest() {
 			auto e = archetype.createEntity();
 			ASSERT(e.fullyValidate());
 			entities.push_back(e);
+			ASSERT(removedEntities.find(e) == removedEntities.end());
 			++numCreate;
 			if (entities.size() == 4)
 				++wasFull;
@@ -186,6 +220,7 @@ TEST ecsReuseEmptySlotsTest() {
 			ASSERT(e.fullyValidate());
 			e.remove();
 			ASSERT(!e.fullyValidate());
+			removedEntities.insert(e);
 			entities.erase(entities.begin() + index);
 			++numDelete;
 			if (entities.empty())
@@ -196,7 +231,93 @@ TEST ecsReuseEmptySlotsTest() {
 	PASS();
 }
 
-/* Suites can group multiple tests with common setup. */
+/* This test checks if basic serialization works. It will setup a bunch of entities,
+ * then remove a bunch, and then serialize the ECS to a in-memory stream.
+ * It will then create a second ECS, load the memory stream into that second ECS,
+ * and do an entity-by-entity, value-by-value comparison of all components.
+ */
+TEST ecsBasicSerializationTest() {
+	ecs::Ecs ecs("Test");
+
+	// setup archetypes
+	auto& vs = ecs.registerArchetype<VectorStorageArchetype>("vs", 1);
+	auto& fas = ecs.registerArchetype<FixedArrayStorageArchetype>("fas", 2);
+
+	// reserve space for the vector driven one
+	vs.reserve(16);
+
+	// create randomized entities in both archetypes
+	size_t numEntities = 0;
+	for (auto archetype : std::vector<ecs::IArchetype*>{&vs, &fas}) {
+		for (int i = 0; i < 4; ++i) {
+			auto e = archetype->createEntity();
+			if (!e.empty()) {
+				auto& pc = e.fetch<PositionComponent>();
+				pc.position = get_randomF();
+				pc.speed = i * i;
+				pc.acceleration = i % 2;
+				if (auto tc = e.get<TimerComponent>())
+					tc->timeLeft = i;
+				++numEntities;
+			}
+		}
+	}
+
+	// remove some entities again
+	ecs.forEachWithEntity<PositionComponent>([&](const ecs::Entity& e, PositionComponent& pc) {
+		if (pc.position < 0.25f) {
+			e.remove();
+			--numEntities;
+		}
+	});
+	ASSERT(vs.size() + fas.size() == numEntities);
+
+	// serialize data
+	MemoryStream memoryStream;
+	ecs.save(memoryStream, /* userdata not used */ nullptr);
+	// std::cout << "Serialized ECS contains " << memoryStream.data().size() << " bytes" << std::endl;
+
+	// setup second ECS
+	ecs::Ecs ecs2("Test2");
+	auto& vs2 = ecs2.registerArchetype<VectorStorageArchetype>("vs", 1);
+	auto& fas2 = ecs2.registerArchetype<FixedArrayStorageArchetype>("fas", 2);
+	memoryStream.setPosition(0);
+	ecs2.load(memoryStream, /* userdata not used */ nullptr);
+
+	// now compare entities
+	using EntVec = std::vector<ecs::Entity>;
+	EntVec vs1ents = getAllEntitiesForArchetype<VectorStorageArchetype>(ecs);
+	EntVec vs2ents = getAllEntitiesForArchetype<VectorStorageArchetype>(ecs2);
+	EntVec fas1ents = getAllEntitiesForArchetype<FixedArrayStorageArchetype>(ecs);
+	EntVec fas2ents = getAllEntitiesForArchetype<FixedArrayStorageArchetype>(ecs2);
+
+	for (auto pair : std::vector<std::pair<EntVec*, EntVec*>>{{&vs1ents, &vs2ents}, {&fas1ents, &fas2ents}}) {
+		ASSERT(pair.first->size() == pair.second->size());
+		for (size_t i = 0; i < pair.first->size(); ++i) {
+			PositionComponent& pc1 = (*pair.first)[i].fetch<PositionComponent>();
+			PositionComponent& pc2 = (*pair.second)[i].fetch<PositionComponent>();
+			ASSERT(&pc1 != &pc2);
+			ASSERT(pc1.position == pc2.position);
+			ASSERT(pc1.speed == pc2.speed);
+			ASSERT(pc1.acceleration == pc2.acceleration);
+
+			TimerComponent* tc1 = (*pair.first)[i].get<TimerComponent>();
+			TimerComponent* tc2 = (*pair.second)[i].get<TimerComponent>();
+			ASSERT(!!tc1 == !!tc2);
+			if (tc1) {
+				ASSERT(tc1 != tc2);
+				ASSERT(tc1->timeLeft == tc2->timeLeft);
+				ASSERT(tc1->self == (*pair.first)[i]);
+				ASSERT(tc2->self == (*pair.second)[i]);
+			}
+		}
+	}
+		
+	PASS();
+}
+
+/* Define test suites */
+
 SUITE(basic) {
 	RUN_TEST(ecsBasicEcsConstructionTest);
 	RUN_TEST(ecsBasicRegistrationTest);
@@ -206,13 +327,18 @@ SUITE(basic) {
 	RUN_TEST(ecsReuseEmptySlotsTest);
 }
 
-GREATEST_MAIN_DEFS();
+SUITE(serialization) {
+	RUN_TEST(ecsBasicSerializationTest);
+}
+
+/* Main application */
 
 int main(int argc, char **argv)
 {
 	GREATEST_MAIN_BEGIN();
 	greatest_set_verbosity(1);	/* always have verbose output */
 	RUN_SUITE(basic);
+	RUN_SUITE(serialization);
 	GREATEST_MAIN_END();		/* display results */
 	return 0;
 }
