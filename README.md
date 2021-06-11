@@ -3,6 +3,7 @@
 Overview:
 - no external dependencies, just a C++17 compiler
   - tested with MSVC 2019, clang and gcc
+  - test suite uses 2021-06-11 version of https://github.com/silentbicycle/greatest
 - bitmask based components
   - currently hard limit of 64 different components 
 - uses archetypes to define types of entities

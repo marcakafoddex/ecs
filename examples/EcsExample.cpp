@@ -24,10 +24,6 @@ SOFTWARE.
 
 */
 
-#include <Ecs.hh>
-#include <Advanced.hh>
-#include <Call.hh>
-
 #include <chrono>
 #include <random>
 #include <thread>
@@ -47,6 +43,7 @@ using CarArchetype = ecs::Archetype<ecs::ArchetypeFlagDefaults, ecs::storage::Fi
  * There is no limit to the amount of ghosts we can have, so we use a vector for storage.
  */
 using GhostArchetype = ecs::Archetype<ecs::ArchetypeFlagDefaults, ecs::storage::Vector, PositionComponent, DrawComponent, TimerComponent>;
+
 
 /* Simple random helpers. */
 static std::default_random_engine e(static_cast<long unsigned int>(time(0)));

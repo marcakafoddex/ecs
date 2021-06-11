@@ -103,6 +103,8 @@ DAE_NAMESPACE_BEGIN
 	class MissingRequiredComponentsException : public std::exception {};
 	class TooLargeComponentException : public std::exception {};
 	class CannotSkipComponentException : public std::exception {};
+	class BadStreamVersion : public std::exception {};
+	class DoubleId : public std::exception {};
 
 	using ArchetypeId_t = uint8_t;
 	using EntityId_t = uint32_t;

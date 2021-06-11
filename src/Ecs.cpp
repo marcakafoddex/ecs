@@ -39,8 +39,6 @@ DAE_NAMESPACE_BEGIN
 
 	namespace {
 		const uint32_t streamVersion = 2;
-		class BadStreamVersion : public std::exception {};
-		class DoubleId : public std::exception {};
 	}
 
 	void Entity::remove() const {
