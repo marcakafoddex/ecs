@@ -20,6 +20,15 @@ Overview:
 - offers a generic Entity class that can hold an entity of any archetype
   - features simple get (pointer), or fetch (reference, throw if non-existent) interface for all components on this entity class
 
+Archetype schematic:
+
+![Overview](/docs/ecs-archetype-overview.png)
+
+Iteraton schematic:
+
+![Overview](/docs/ecs-iteration-overview.png)
+
+
 # Building instructions
 
 You need CMake to build this project.
