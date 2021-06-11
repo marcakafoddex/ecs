@@ -30,7 +30,8 @@ cd build
 cmake ..
 make
 cd bin
-./ecs-example
+./ecs-example       # if built with example
+./ecs-tests         # if built with tests
 ```
 
 # Components
